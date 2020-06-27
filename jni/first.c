@@ -8,19 +8,20 @@
 #define LOG_TAG "MyTag"
 #define LOGV(...)   __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, __VA_ARGS__)
 
-#include MAX_BUTTON 9
+#define MAX_BUTTON 9
 
 int first() {
     unsigned char push_sw_buff[MAX_BUTTON];
     
-    dev = open("/dev/fpga_push_switch", O_RDWR);
+    int dev = open("/dev/fpga_push_switch", O_RDWR);
+    LOGV("dev : %d\n", dev);
     if (dev<0) {
         printf("Device Open Error\n");
         close(dev);
         return -1;
     }
     
-    buff_size = sizeof(push_sw_buff);
+    int buff_size = sizeof(push_sw_buff);
     
     read(dev, &push_sw_buff, buff_size);
     
@@ -32,6 +33,6 @@ int first() {
             return i;
         }
     }
-    
+    close(dev);
     return 9;
 }

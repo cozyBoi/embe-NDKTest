@@ -6,25 +6,28 @@ import android.view.Menu;
 import android.widget.TextView;
 
 public class NDKExam extends Activity {
-	public native int add(int x, int y);
+	public native int add();
 	public native void testString(String str);
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        //setContentView(R.layout.main);
-        
-        TextView tv = new TextView(this);
-        int x = 1000;
-        int y = 42;
-        
-        System.loadLibrary("ndk-exam");
-        
-        int z = add(x, y);
-        
-        tv.setText("The sum of " + x + " and " + y + " is " + z);
-        setContentView(tv);
+		super.onCreate(savedInstanceState);
+		//setContentView(R.layout.main);
 
-        testString("test");
+		TextView tv = new TextView(this);
+		int x = 1000;
+		int y = 42;
+		int z = 0;
+		System.loadLibrary("ndk-exam");
+
+		while(true){
+			z = add();
+
+			
+			if(z == 8) break;
+		}
+		tv.setText("The sum of " + x + " and " + y + " is " + z);
+		setContentView(tv);
+		testString("test");
 	}
 
 	@Override
