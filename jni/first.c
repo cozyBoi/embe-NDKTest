@@ -1,39 +1,37 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <string.h>
-#include <syscall.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
+#include <jni.h>
+#include "android/log.h"
 
-#define DEVICE "/dev/stopwatch"
+#define LOG_TAG "MyTag"
+#define LOGV(...)   __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, __VA_ARGS__)
 
-extern int first(int x,int y);
-static int dev;
-int first(int x, int y)
-{
-    if(x == 0){
-        oopen();
+#include MAX_BUTTON 9
+
+int first() {
+    unsigned char push_sw_buff[MAX_BUTTON];
+    
+    dev = open("/dev/fpga_push_switch", O_RDWR);
+    if (dev<0) {
+        printf("Device Open Error\n");
+        close(dev);
+        return -1;
     }
-    else if(x == 1){
-        wwrite();
+    
+    buff_size = sizeof(push_sw_buff);
+    
+    read(dev, &push_sw_buff, buff_size);
+    
+    int i = 0;
+    for(i = 0; i < 9; i++){
+        if(push_sw_buff[i] == 1){
+            push_sw_buff[i] = 0;
+            LOGV("butt : %d\n", i);
+            return i;
+        }
     }
-    else if(x == 2){
-        cclose();
-    }
-	return x + y;
-}
-
-void oopen(){
-    int dev = open(DEVICE, O_WRONLY);
-}
-
-void wwrite(){
-    char data = 0;
-    write(dev, &data, sizeof(data));
-}
-
-void cclose(){
-    close(dev);
+    
+    return 9;
 }

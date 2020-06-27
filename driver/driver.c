@@ -67,11 +67,6 @@ static int blink_cnt = 1;
 int iom_fpga_driver_open(struct inode *minode, struct file *mfile);
 int iom_fpga_driver_release(struct inode *minode, struct file *mfile);
 int iom_fpga_driver_write(struct file *filp, const char *buf, size_t count, loff_t *f_pos);
-irqreturn_t home_handler( int irq, void * dev_id, struct pt_regs *regs );
-irqreturn_t back_handler( int irq, void * dev_id, struct pt_regs *regs );
-irqreturn_t vol_up_handler( int irq, void * dev_id, struct pt_regs *regs );
-irqreturn_t vol_down_push_handler( int irq, void * dev_id, struct pt_regs *regs );
-irqreturn_t vol_down_pull_handler( int irq, void * dev_id, struct pt_regs *regs );
 int fnd_write(unsigned int value[4]);
 
 
@@ -87,29 +82,6 @@ static int EXITEXIT = 0;
 static unsigned int fnd_value[4];
 static int timer_init = 0;
 static int first_push = 1;
-
-//up count function of fnd
-void up_cnt(){
-    fnd_value[0]++;
-    if(fnd_value[0] == 10){
-        fnd_value[0] = 0;
-        fnd_value[1]++;
-    }
-    
-    if(fnd_value[1] == 6){
-        fnd_value[1] = 0;
-        fnd_value[2]++;
-    }
-    
-    if(fnd_value[2] == 10){
-        fnd_value[2] = 0;
-        fnd_value[3]++;
-    }
-    
-    if(fnd_value[3] == 6){
-        fnd_value[3] = 0;
-    }
-}
 
 int fnd_write(unsigned int _value[4]){
     unsigned int value[4];
@@ -127,122 +99,6 @@ int fnd_write(unsigned int _value[4]){
     outw(value_short,(unsigned int)iom_fpga_fnd_addr);
     
     return 0;
-}
-
-static int blinking_cnt = 0;
-
-//timer function
-//it is called when 1/10 second passed
-//-> so when this function called 10 times, it means 1 second passed
-static void kernel_timer_blink(unsigned long timeout) {
-    printk("start blink\n");
-    struct struct_mydata *p_data = (struct struct_mydata*)timeout;
-    unsigned char string[33];
-    printk("kernel_timer_blink %d\n", p_data->count);
-    
-    if(EXITEXIT){
-        return;
-    }
-    if(blinking_cnt >= 10){
-        //1 second
-        blinking_cnt = 0;
-        up_cnt();
-        fnd_write(fnd_value);
-    }
-    mydata.timer.expires = get_jiffies_64() + HZ/10;
-    mydata.timer.data = (unsigned long)&mydata;
-    mydata.timer.function = kernel_timer_blink;
-    
-    add_timer(&mydata.timer);
-    blinking_cnt++;
-}
-
-
-irqreturn_t inter_handler1(int irq, void* dev_id, struct pt_regs* reg) {
-	printk(KERN_ALERT "interrupt1!!! = %x\n", gpio_get_value(IMX_GPIO_NR(1, 11)));
-
-	printk("home handler\n");
-    if(!timer_init){
-        //init timer
-        printk("hi!\n");
-        EXITEXIT = 0;
-        timer_init = 1;
-        mydata.timer.expires = jiffies + HZ/10;
-        mydata.timer.data = (unsigned long)&mydata;
-        mydata.timer.function = kernel_timer_blink;
-        add_timer(&mydata.timer);
-    }
-	return IRQ_HANDLED;
-}
-
-irqreturn_t inter_handler2(int irq, void* dev_id, struct pt_regs* reg) {
-        printk(KERN_ALERT "interrupt2!!! = %x\n", gpio_get_value(IMX_GPIO_NR(1, 12)));
-    //EXITEXIT -> make timer call back function returning
-    //timer_init -> if press home button many time, timer error occur
-    //           -> so make flag to ignore pressing "home" button many time
-    EXITEXIT = 1;
-    timer_init = 0;
-    return IRQ_HANDLED;
-}
-
-irqreturn_t inter_handler3(int irq, void* dev_id,struct pt_regs* reg) {
-        printk(KERN_ALERT "interrupt3!!! = %x\n", gpio_get_value(IMX_GPIO_NR(2, 15)));
-    //EXITEXIT -> make timer call back function returning
-    //timer_init -> if press home button many time, timer error occur
-    //           -> so make flag to ignore pressing "home" button many time
-    //and make fnd value to zero and print to fnd
-    EXITEXIT = 1;
-    timer_init = 0;
-    int i = 0;
-    for(i = 0; i < 4; i++) fnd_value[i] = 0;
-    fnd_write(fnd_value);
-    return IRQ_HANDLED;
-}
-
-unsigned long curr = 0;
-unsigned long prev = 0;
-static int ENDENDEND = 0;
-
-void aassign(){
-    //curr -> HZ of pull time
-    //prev -> HZ of push time
-    unsigned long mminus = curr - prev;
-    unsigned long proddd = 29 * HZ / 10;
-    //if minus of time exceed thresh hold
-    //ENDENDEND <- 1 : wakeup write function
-    //EXITEXIT <- 1 : return call back function
-    
-    printk("%ld - %ld\n", mminus, proddd);
-    int condi = (mminus >= proddd);
-    if(condi){
-        ENDENDEND = 1;
-        EXITEXIT = 1;
-    }
-}
-
-irqreturn_t inter_handler4(int irq, void* dev_id, struct pt_regs* reg) {
-    printk(KERN_ALERT "interrupt4!!! = %x\n", gpio_get_value(IMX_GPIO_NR(5, 14)));
-    int i;
-    
-    if(first_push){
-        prev = get_jiffies_64();
-        first_push = 0;
-    }
-    else{
-        curr = get_jiffies_64();
-        aassign();
-        prev = curr;
-        first_push = 1;
-    }
-    
-    if(ENDENDEND){
-        for(i = 0; i < 4; i++) fnd_value[i] = 0;
-        fnd_write(fnd_value);
-        first_push = 1;
-        ENDENDEND = 0;
-        __wake_up(&wq_write, 1, 1, NULL);
-    }
-    return IRQ_HANDLED;
 }
 
 static int inter_open(struct inode *minode, struct file *mfile){
@@ -309,9 +165,25 @@ static int inter_release(struct inode *minode, struct file *mfile){
 	return 0;
 }
 
-static int inter_write(struct file *filp, const char *buf, size_t count, loff_t *f_pos ){
-    printk("sleep on\n");
-    interruptible_sleep_on(&wq_write);
+static int inter_read(struct file *filp, const char *buf, size_t count, loff_t *f_pos ){
+    if (push_sw_buff[0] == 1 && prev_push_sw_buff[0] != 1) {
+        Text_mode = ~Text_mode;
+        push_sw_buff[0] = 0;
+    }
+    else if (push_sw_buff[1] == 1) {
+        Clock_FND_set_to_borad_time();
+        push_sw_buff[1] = 0;
+    }
+    else if (push_sw_buff[2] == 1 && Text_mode) {
+        clock_plus_hour();
+        printf("plus hour\n");
+        push_sw_buff[2] = 0;
+    }
+    else if (push_sw_buff[3] == 1 && Text_mode) {
+        clock_plus_minute();
+        printf("plus minute\n");
+        push_sw_buff[3] = 0;
+    }
 	printk("write\n");
 	return 0;
 }

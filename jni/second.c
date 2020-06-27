@@ -6,10 +6,10 @@
 
 extern int first(int x,int y);
 
-jint JNICALL Java_org_example_ndk_NDKExam_add(JNIEnv *env, jobject this, jint x, jint y)
+jint JNICALL Java_org_example_ndk_NDKExam_add(JNIEnv *env, jobject this)
 {
 	LOGV("log test %d", 1234);
-	return first(x, y);
+	return first();
 }
 
 void JNICALL Java_org_example_ndk_NDKExam_testString(JNIEnv *env, jobject this, jstring string)
